@@ -1,26 +1,34 @@
+// server.js
 import express from "express";
 import multer from "multer";
-import mysql from "mysql2/promise";
 import path from "path";
 import fs from "fs";
 import cors from "cors";
+import dotenv from "dotenv";
+import pkg from "pg";
+
+const { Pool } = pkg;
+
+// Load environment variables from .env
+dotenv.config();
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-// --- Enable CORS ---
+// Enable CORS
 app.use(cors());
 
-// --- Serve uploads folder statically ---
+// Serve uploads folder statically
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-
-// --- MySQL Connection ---
-const db = await mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "Abhiharshi@135",
-  database: "screen_recorder",
+// --- PostgreSQL Connection ---
+const pool = new Pool({
+  host: process.env.DB_HOST,      // e.g., Render internal/external host
+  user: process.env.DB_USER,      // DB username
+  password: process.env.DB_PASS,  // DB password
+  database: process.env.DB_NAME,  // DB name
+  port: process.env.DB_PORT,      // usually 5432
+  ssl: { rejectUnauthorized: false } // required for Render Postgres
 });
 
 // --- Storage Setup (store in uploads/) ---
@@ -45,8 +53,8 @@ app.post("/api/recordings", upload.single("video"), async (req, res) => {
     const filename = req.file.filename;
     const filepath = `/uploads/${filename}`; // public URL
 
-    await db.query(
-      "INSERT INTO recordings (filename, filepath) VALUES (?, ?)",
+    await pool.query(
+      "INSERT INTO recordings (filename, filepath) VALUES ($1, $2)",
       [filename, filepath]
     );
 
@@ -60,8 +68,10 @@ app.post("/api/recordings", upload.single("video"), async (req, res) => {
 // Get all recordings
 app.get("/api/recordings", async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM recordings ORDER BY created_at DESC");
-    res.json(rows);
+    const result = await pool.query(
+      "SELECT * FROM recordings ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
   } catch (err) {
     console.error("Fetch error:", err);
     res.status(500).json({ error: "❌ Failed to fetch recordings" });
@@ -71,12 +81,15 @@ app.get("/api/recordings", async (req, res) => {
 // Get a specific recording by id
 app.get("/api/recordings/:id", async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM recordings WHERE id = ?", [
-      req.params.id,
-    ]);
-    if (rows.length === 0) return res.status(404).json({ error: "Not found" });
+    const result = await pool.query(
+      "SELECT * FROM recordings WHERE id = $1",
+      [req.params.id]
+    );
 
-    const recording = rows[0];
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Not found" });
+
+    const recording = result.rows[0];
     res.sendFile(path.resolve(`.${recording.filepath}`));
   } catch (err) {
     console.error("Fetch single error:", err);
@@ -84,9 +97,10 @@ app.get("/api/recordings/:id", async (req, res) => {
   }
 });
 
-// --- Start server ---
+// Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
 });
+
 
 
