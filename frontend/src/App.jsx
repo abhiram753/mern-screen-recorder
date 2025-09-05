@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
 import { Play, Square, Download, Upload, List } from "lucide-react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import RecordingsList from "./RecordingsList"; // make sure this path is correct
+import RecordingsList from "./RecordingsList";
 
-const API_URL = "http://localhost:5000";
+// Use environment variable if deployed
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function Recorder() {
   const [recording, setRecording] = useState(false);
@@ -52,7 +53,9 @@ function Recorder() {
       });
 
       if (res.ok) {
-        alert("✅ Upload successful! Go to 'Recordings List' to view it.");
+        alert("✅ Upload successful! Check 'Recordings List'.");
+        setVideoUrl(null);
+        setRecordedBlob(null);
       } else {
         alert("❌ Upload failed.");
       }
@@ -65,7 +68,6 @@ function Recorder() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50">
       <h1 className="text-3xl font-bold mb-6">🎥 Screen Recorder</h1>
-
       <div className="bg-white shadow-2xl rounded-2xl p-6 w-full max-w-lg">
         {videoUrl ? (
           <video controls src={videoUrl} className="rounded-lg mb-4 w-full" />
@@ -133,5 +135,4 @@ export default function App() {
     </Router>
   );
 }
-
 
