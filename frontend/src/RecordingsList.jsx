@@ -4,6 +4,8 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function RecordingsList() {
   const [recordings, setRecordings] = useState([]);
+  const [loading, setLoading] = useState(true); // Loading state
+  const [error, setError] = useState(null);     // Error state
 
   useEffect(() => {
     const fetchRecordings = async () => {
@@ -14,11 +16,30 @@ export default function RecordingsList() {
         setRecordings(data);
       } catch (err) {
         console.error(err);
+        setError("Failed to load recordings");
         setRecordings([]);
+      } finally {
+        setLoading(false);
       }
     };
     fetchRecordings();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-700 text-xl">Loading recordings...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-red-500 text-xl">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center">
@@ -38,7 +59,7 @@ export default function RecordingsList() {
                   {rec.filename}
                 </h3>
                 <p className="text-sm text-gray-500 mb-3">
-                  {new Date(rec.created_at).toLocaleString()}
+                  {rec.created_at ? new Date(rec.created_at).toLocaleString() : ""}
                 </p>
                 <video controls src={videoSrc} className="rounded-lg mb-3 w-full max-w-[400px]" />
                 <a
@@ -56,4 +77,3 @@ export default function RecordingsList() {
     </div>
   );
 }
-

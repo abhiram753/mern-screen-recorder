@@ -1,16 +1,10 @@
-// server.js
+// server.js (mock DB version)
 import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import cors from "cors";
-import dotenv from "dotenv";
-import pkg from "pg";
-
-const { Pool } = pkg;
-
-// Load environment variables
-dotenv.config();
+import { v4 as uuidv4 } from "uuid";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,11 +17,13 @@ const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 app.use("/uploads", express.static(UPLOAD_DIR));
 
-// PostgreSQL connection using connection string
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // full Render Postgres URL
-  ssl: { rejectUnauthorized: false },
-});
+// Path to mock database
+const DB_FILE = path.join(process.cwd(), "recordings.json");
+if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, JSON.stringify([]));
+
+// Helper functions
+const readDB = () => JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+const writeDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 
 // Multer storage setup
 const storage = multer.diskStorage({
@@ -39,51 +35,39 @@ const upload = multer({ storage });
 // --- API Routes ---
 
 // Upload recording
-app.post("/api/recordings", upload.single("video"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+app.post("/api/recordings", upload.single("video"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    const filename = req.file.filename;
-    const filepath = `/uploads/${filename}`;
+  const recordings = readDB();
+  const newRec = {
+    id: uuidv4(),
+    filename: req.file.filename,
+    filepath: `/uploads/${req.file.filename}`,
+    created_at: new Date().toISOString(),
+  };
+  recordings.push(newRec);
+  writeDB(recordings);
 
-    await pool.query(
-      "INSERT INTO recordings (filename, filepath) VALUES ($1, $2)",
-      [filename, filepath]
-    );
-
-    res.json({ message: "✅ Upload successful", filename, filepath });
-  } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ error: "❌ Failed to save recording" });
-  }
+  res.json({ message: "✅ Upload successful", ...newRec });
 });
 
 // Get all recordings
-app.get("/api/recordings", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM recordings ORDER BY created_at DESC");
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Fetch error:", err);
-    res.status(500).json({ error: "❌ Failed to fetch recordings" });
-  }
+app.get("/api/recordings", (req, res) => {
+  const recordings = readDB();
+  res.json(recordings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
 });
 
 // Get a specific recording
-app.get("/api/recordings/:id", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM recordings WHERE id = $1", [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
+app.get("/api/recordings/:id", (req, res) => {
+  const recordings = readDB();
+  const recording = recordings.find((r) => r.id === req.params.id);
+  if (!recording) return res.status(404).json({ error: "Not found" });
 
-    const recording = result.rows[0];
-    res.sendFile(path.resolve(`.${recording.filepath}`));
-  } catch (err) {
-    console.error("Fetch single error:", err);
-    res.status(500).json({ error: "❌ Failed to fetch recording" });
-  }
+  res.sendFile(path.resolve(`.${recording.filepath}`));
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ Mock server running on port ${PORT}`);
 });
+

@@ -1,17 +1,60 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Play, Square, Download, Upload, List } from "lucide-react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import RecordingsList from "./RecordingsList";
 
-// Use environment variable if deployed
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// Component to show list of recordings
+function RecordingsList() {
+  const [recordings, setRecordings] = useState([]);
 
+  // Use environment variable if deployed
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/recordings`)
+      .then((res) => res.json())
+      .then(setRecordings)
+      .catch(console.error);
+  }, [API_URL]);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center p-6 bg-gray-50">
+      <h1 className="text-3xl font-bold mb-6">📄 Recordings List</h1>
+      <div className="w-full max-w-2xl bg-white shadow-2xl rounded-2xl p-6">
+        {recordings.length === 0 && <p>No recordings yet.</p>}
+        {recordings.map((rec) => (
+          <div key={rec.id} className="flex justify-between items-center mb-4 p-2 border rounded">
+            <span>{rec.filename}</span>
+            <a
+              href={`${API_URL}${rec.filepath}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              Play / Download
+            </a>
+          </div>
+        ))}
+      </div>
+      <Link
+        to="/"
+        className="mt-4 text-white bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded-lg shadow"
+      >
+        Back to Recorder
+      </Link>
+    </div>
+  );
+}
+
+// Recorder component
 function Recorder() {
   const [recording, setRecording] = useState(false);
   const [videoUrl, setVideoUrl] = useState(null);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const mediaRecorder = useRef(null);
   const chunks = useRef([]);
+
+  // Use environment variable if deployed
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -42,7 +85,6 @@ function Recorder() {
 
   const handleUpload = async () => {
     if (!recordedBlob) return;
-
     const formData = new FormData();
     formData.append("video", recordedBlob, "recording.webm");
 
@@ -125,6 +167,7 @@ function Recorder() {
   );
 }
 
+// App component with routes
 export default function App() {
   return (
     <Router>
@@ -135,4 +178,3 @@ export default function App() {
     </Router>
   );
 }
-
